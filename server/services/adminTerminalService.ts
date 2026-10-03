@@ -90,6 +90,6 @@ export async function executeAdminCommand(adminId:string,command:string,args:Rec
   default: throw Object.assign(new Error("Unsupported command"),{status:400});
  }
  await db.execute(sql`INSERT INTO admin_terminal_history(admin_id,command,arguments,result) VALUES(${adminId},${normalized},${JSON.stringify(args)}::jsonb,${JSON.stringify(result)}::jsonb)`);
- await db.execute(sql`INSERT INTO admin_logs(admin_id,action,target_type,details) VALUES(${adminId},${normalized},"admin_terminal",${JSON.stringify(result)}::jsonb)`);
+ await db.execute(sql`INSERT INTO admin_logs(admin_id,action,target_type,details) VALUES(${adminId},${normalized},'admin_terminal',${JSON.stringify(result)}::jsonb)`);
  return result;
 }
