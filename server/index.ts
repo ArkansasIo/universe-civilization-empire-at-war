@@ -6,7 +6,7 @@ import crypto from "node:crypto";
 import path from "node:path";
 import { db, shutdownDb } from "./db";
 import { users } from "../shared/schema";
-import { eq, ilike, or } from "drizzle-orm";
+import { eq, ilike, or, sql } from "drizzle-orm";
 import { registerAdminTerminalRoutes } from "./routes-admin-terminal";
 
 const app = express();
@@ -36,7 +36,7 @@ function hashPassword(password: string): string {
 
 app.get("/api/status/health", async (_req, res) => {
   try {
-    await db.execute({ sql: "SELECT 1", params: [] } as never);
+    await db.execute(sql`SELECT 1`);
     res.json({ ok: true, status: "healthy", timestamp: new Date().toISOString() });
   } catch {
     res.status(503).json({ ok: false, status: "degraded", timestamp: new Date().toISOString() });
@@ -64,7 +64,7 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(403).json({ message: user.banReason || "Account is banned" });
     }
 
-    req.session.userId = user.id;
+    (req.session as any).userId = user.id;
     await new Promise<void>((resolve, reject) => req.session.save(err => err ? reject(err) : resolve()));
     res.json({ message: "Login successful", user: { id: user.id, username: user.username, email: user.email } });
   } catch (error) {
@@ -77,9 +77,9 @@ app.post("/api/auth/logout", (req, res) => {
 });
 
 app.get("/api/auth/me", async (req, res) => {
-  if (!req.session.userId) return res.status(401).json({ authenticated: false });
+  if (!(req.session as any).userId) return res.status(401).json({ authenticated: false });
   const [user] = await db.select({ id: users.id, username: users.username, email: users.email, isBanned: users.isBanned })
-    .from(users).where(eq(users.id, req.session.userId)).limit(1);
+    .from(users).where(eq(users.id, (req.session as any).userId)).limit(1);
   if (!user || user.isBanned) return res.status(401).json({ authenticated: false });
   res.json({ authenticated: true, user });
 });
