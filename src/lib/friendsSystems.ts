@@ -1,0 +1,1 @@
+import {gameApiClient} from "./gameApi"; export const friendsSystems={requests:()=>gameApiClient.get("/api/friends/requests"),request:(friendId:string)=>gameApiClient.post("/api/friends/request",{friendId}),accept:(id:string)=>gameApiClient.post("/api/friends/accept/"+id,{}),remove:(id:string)=>gameApiClient.delete("/api/friends/"+id)};

@@ -1,0 +1,3 @@
+export interface ApiResult<T>{ok:boolean;data?:T;error?:string;[key:string]:unknown}
+export async function gameApi<T>(path:string,init:RequestInit={}){const response=await fetch(path,{credentials:"include",headers:{"Content-Type":"application/json",...(init.headers||{})},...init});const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.error||body.message||`Request failed: ${response.status}`);return body as ApiResult<T>}
+export const gameApiClient={get:<T>(path:string)=>gameApi<T>(path),post:<T>(path:string,data:unknown)=>gameApi<T>(path,{method:"POST",body:JSON.stringify(data)}),delete:<T>(path:string)=>gameApi<T>(path,{method:"DELETE"})};

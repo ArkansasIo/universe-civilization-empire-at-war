@@ -16,7 +16,8 @@
     "start:bat": "start-server.bat",
     "start:sh": "bash start-server.sh",
     "build:exe": "node scripts/generate-pe-exe.cjs && node scripts/validate-exe.cjs",
-    "validate:exe": "node scripts/validate-exe.cjs"
+    "validate:exe": "node scripts/validate-exe.cjs",
+    "test:dependency": "tsx scripts/dependency-smoke.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -51,7 +52,7 @@
     "@types/react-dom": "^19.3.0",
     "@types/three": "^0.186.0",
     "autoprefixer": "^10.4.21",
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.28.2",
     "tailwindcss": "^4.3.3",
     "tsx": "^4.21.0",
     "typescript": "^7.0.2"

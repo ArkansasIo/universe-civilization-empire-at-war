@@ -1,0 +1,1 @@
+import {gameApiClient} from "./gameApi"; export const realmSystems={list:(page=1)=>gameApiClient.get("/api/realms?page="+page),get:(id:string)=>gameApiClient.get("/api/realms/"+id),create:(name:string)=>gameApiClient.post("/api/realms",{name}),join:(id:string)=>gameApiClient.post("/api/realms/"+id+"/join",{})};

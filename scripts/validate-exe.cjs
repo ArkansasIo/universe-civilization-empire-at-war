@@ -117,6 +117,16 @@ function validate(filePath, filename) {
   const content = buffer.toString("ascii");
   const command = expected[filename];
   if (!content.includes(command)) error(label, `expected launcher command is missing: ${command}`);
+  const textBytes = buffer.subarray(0x400, 0x600);
+  const expectedFirstCall = Buffer.from([0xff, 0x15, 0x3a, 0x10, 0x00, 0x00]);
+  const expectedExitCall = Buffer.from([0xff, 0x15, 0x38, 0x10, 0x00, 0x00]);
+  const firstCallOffset = textBytes.indexOf(expectedFirstCall);
+  const exitCallOffset = textBytes.indexOf(expectedExitCall);
+  if (firstCallOffset < 0) error(label, "WinExec RIP-relative IAT call is malformed");
+  if (exitCallOffset < 0) error(label, "ExitProcess RIP-relative IAT call is malformed");
+  const wrongExitCall = Buffer.from([0xff, 0x15, 0x3a, 0x10, 0x00, 0x00]);
+  if (textBytes.indexOf(wrongExitCall) >= 0 && exitCallOffset < 0) error(label, "found legacy broken ExitProcess displacement");
+
   if (!content.includes("KERNEL32.dll") || !content.includes("WinExec") || !content.includes("ExitProcess")) {
     error(label, "required Kernel32 imports are incomplete");
   }

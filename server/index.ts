@@ -24,6 +24,9 @@ import { registerOrbitalStationRoutes } from "./routes-orbital-stations";
 import { registerBankVaultRoutes } from "./routes-bank-vault";
 import { registerDatabaseAdminRoutes } from "./routes-database-admin";
 import { registerCoreApiRoutes } from "./routes-api-core";
+import { registerEconomyCoreRoutes } from "./routes-economy-core";
+import { registerDependencySystemRoutes } from "./routes-dependency-systems";
+import { registerProgressionRoutes } from "./routes-progression";
 import { ServerStatusService } from "./services/serverStatusService";
 import { registerGameAssetLibraryRoutes } from "./routes-game-asset-library";
 import { registerStarbaseRoutes } from "./routes-starbase";
@@ -315,6 +318,9 @@ import { eq, ilike, or } from "drizzle-orm";
   }
 
   registerCoreApiRoutes(app);
+  registerEconomyCoreRoutes(app);
+  registerDependencySystemRoutes(app);
+  registerProgressionRoutes(app);
   registerRoutes(app);
   registerSettingsRoutes(app);
   registerStatusRoutes(app);
@@ -364,6 +370,8 @@ import { eq, ilike, or } from "drizzle-orm";
   registerArtifactRoutes(app);
   registerGuildRoutes(app);
   registerForumRoutes(app);
+  registerMessageRoutes(app);
+  registerFriendRoutes(app);
   registerEmpireCombatUniverseRoutes(app);
   registerCommanderRoutes(app);
   registerHighCommandRoutes(app);
