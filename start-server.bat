@@ -31,12 +31,19 @@ for /f "tokens=*" %%v in ('node -v') do set NODE_VERSION=%%v
 echo [OK] Detected Node.js: %NODE_VERSION%
 
 :: Step 2: Check for npm and project dependencies
-if not exist "node_modules" (
+if not exist "node_modules\.bin\tsc.cmd" (
     echo [*] 'node_modules' folder not found. Installing dependencies...
     call npm install
     if %ERRORLEVEL% neq 0 (
         color 0C
         echo [ERROR] Failed to install npm dependencies.
+        pause
+        exit /b 1
+    )
+    if not exist "node_modules\.bin\tsc.cmd" (
+        color 0C
+        echo [ERROR] npm install completed without the TypeScript compiler.
+        echo Delete node_modules and run npm install again.
         pause
         exit /b 1
     )
@@ -48,9 +55,9 @@ if not exist "node_modules" (
 echo.
 echo [*] Compiling TypeScript source (server/index.ts -^> dist-server/)...
 if exist "tsconfig.server.json" (
-    call npx tsc -p tsconfig.server.json
+    call "node_modules\.bin\tsc.cmd" -p tsconfig.server.json
 ) else (
-    call npx tsc server/index.ts --outDir dist-server --target ES2022 --module NodeNext --moduleResolution NodeNext --esModuleInterop
+    call "node_modules\.bin\tsc.cmd" server/index.ts --outDir dist-server --target ES2022 --module NodeNext --moduleResolution NodeNext --esModuleInterop
 )
 
 if %ERRORLEVEL% neq 0 (
