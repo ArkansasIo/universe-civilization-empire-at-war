@@ -3,9 +3,7 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": [
-      "ES2022"
-    ],
+    "lib": ["ES2022"],
     "outDir": "./dist-server",
     "rootDir": "./",
     "strict": true,
@@ -19,13 +17,14 @@
     "allowSyntheticDefaultImports": true
   },
   "include": [
-    "server/**/*",
-    "shared/**/*"
+    "server/index.ts",
+    "server/loadEnv.ts",
+    "server/logger.ts",
+    "server/db/**/*.ts",
+    "server/adminPermissions.ts",
+    "server/routes-admin-terminal.ts",
+    "server/services/adminTerminalService.ts",
+    "shared/schema.ts"
   ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "dist-server",
-    "src"
-  ]
+  "exclude": ["node_modules", "dist", "dist-server", "src"]
 }
