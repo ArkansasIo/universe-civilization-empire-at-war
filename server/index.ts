@@ -364,6 +364,8 @@ import { eq, ilike, or } from "drizzle-orm";
   registerArtifactRoutes(app);
   registerGuildRoutes(app);
   registerForumRoutes(app);
+  registerMessageRoutes(app);
+  registerFriendRoutes(app);
   registerEmpireCombatUniverseRoutes(app);
   registerCommanderRoutes(app);
   registerHighCommandRoutes(app);
