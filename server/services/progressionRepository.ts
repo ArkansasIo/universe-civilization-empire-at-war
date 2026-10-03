@@ -43,3 +43,4 @@ export async function startFleetBuild(userId:string,colonyId:string,shipId:strin
  return {queue:q.rows[0],cost};
 }
 export function technologyDefinition(id:string){return TECHNOLOGIES.find(x=>x.id===id);}
+export async function processProgressionQueues(){ const r=await pool.query("UPDATE building_queues SET processed=TRUE WHERE processed=FALSE AND cancelled=FALSE AND end_time<=NOW() RETURNING id"); const f=await pool.query("UPDATE fleet_build_queues SET processed=TRUE WHERE processed=FALSE AND cancelled=FALSE AND end_time<=NOW() RETURNING id"); return {buildings:r.rowCount,fleets:f.rowCount}; }
