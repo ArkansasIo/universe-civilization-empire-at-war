@@ -25,6 +25,7 @@ import { registerBankVaultRoutes } from "./routes-bank-vault";
 import { registerDatabaseAdminRoutes } from "./routes-database-admin";
 import { registerCoreApiRoutes } from "./routes-api-core";
 import { registerEconomyCoreRoutes } from "./routes-economy-core";
+import { registerDependencySystemRoutes } from "./routes-dependency-systems";
 import { ServerStatusService } from "./services/serverStatusService";
 import { registerGameAssetLibraryRoutes } from "./routes-game-asset-library";
 import { registerStarbaseRoutes } from "./routes-starbase";
@@ -317,6 +318,7 @@ import { eq, ilike, or } from "drizzle-orm";
 
   registerCoreApiRoutes(app);
   registerEconomyCoreRoutes(app);
+  registerDependencySystemRoutes(app);
   registerRoutes(app);
   registerSettingsRoutes(app);
   registerStatusRoutes(app);
