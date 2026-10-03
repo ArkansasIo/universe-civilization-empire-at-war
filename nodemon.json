@@ -1,0 +1,11 @@
+{
+  "watch": ["server"],
+  "ext": "ts,json",
+  "ignore": ["node_modules", "dist", "dist-server", "src"],
+  "exec": "npx tsc -p tsconfig.server.json && node dist-server/index.js",
+  "delay": "1000",
+  "env": {
+    "NODE_ENV": "development",
+    "PORT": "3000"
+  }
+}

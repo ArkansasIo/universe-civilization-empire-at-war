@@ -1,0 +1,6 @@
+{
+  "name": "BSAT - TypeScript to Node.js Auto-Start & Compiler Suite",
+  "description": "Professional developer program and batch/shell script suite for auto-compiling TypeScript into Node.js with live server supervision, file watching, and instant restart scripts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
