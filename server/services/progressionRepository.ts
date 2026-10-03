@@ -28,14 +28,14 @@ export async function debitResources(userId:string,colonyId:string,cost:Record<s
   await client.query("COMMIT");
  }catch(e){await client.query("ROLLBACK");throw e}finally{client.release()}
 }
-export async function queueBuilding(userId:string,colonyId:string,buildingId:string,targetLevel:number,endTime:Date){
+export async function startBuilding(userId:string,colonyId:string,buildingId:string,targetLevel:number,endTime:Date){
  const def=BUILDINGS.find(x=>x.id===buildingId);if(!def)throw new Error("Unknown building");
  if(targetLevel<1||targetLevel>def.levelMax)throw new Error("Invalid building level");
  const cost=scaleCost(def.cost,targetLevel);
  const q=await pool.query("INSERT INTO building_queues(colony_id,user_id,building_type,target_level,start_time,end_time,metal_cost,crystal_cost,deuterium_cost) VALUES($1,$2,$3,$4,NOW(),$5,$6,$7,$8) RETURNING *",[colonyId,userId,buildingId,targetLevel,endTime,cost.metal??0,cost.crystal??0,cost.naquadah??0]);
  return q.rows[0];
 }
-export async function queueFleet(userId:string,colonyId:string,shipId:string,quantity:number,endTime:Date){
+export async function startFleetBuild(userId:string,colonyId:string,shipId:string,quantity:number,endTime:Date){
  const def=SHIPS.find(x=>x.id===shipId);if(!def)throw new Error("Unknown ship");
  if(!Number.isInteger(quantity)||quantity<1)throw new Error("Invalid quantity");
  const cost=Object.fromEntries(Object.entries(def.cost).map(([k,v])=>[k,v*quantity]));
