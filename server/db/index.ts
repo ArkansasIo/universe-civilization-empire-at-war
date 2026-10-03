@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
-import * as schema from "@shared/schema";
+import * as schema from "../../shared/schema";
 
 const envUrl = process.env.DATABASE_URL || "";
 const localUrl = process.env.LOCAL_DATABASE_URL || "";
