@@ -26,6 +26,16 @@ if %ERRORLEVEL% neq 0 (
     exit /b 1
 )
 
+echo [*] Validating generated PE32+ binaries...
+call node scripts/validate-exe.cjs
+
+if %ERRORLEVEL% neq 0 (
+    color 0C
+    echo [ERROR] Executable validation found errors.
+    pause
+    exit /b 1
+)
+
 echo.
 echo [OK] All .exe binaries generated successfully in the root directory (outside src/):
 echo   - .\bsat-studio.exe

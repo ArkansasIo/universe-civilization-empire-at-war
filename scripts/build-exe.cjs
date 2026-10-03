@@ -12,7 +12,13 @@ const { spawnSync } = require("node:child_process");
 const path = require("node:path");
 
 const generator = path.resolve(__dirname, "generate-pe-exe.cjs");
-const result = spawnSync(process.execPath, [generator], { stdio: "inherit" });
+const validator = path.resolve(__dirname, "validate-exe.cjs");
+
+function run(script) {
+  return spawnSync(process.execPath, [script], { stdio: "inherit" });
+}
+
+const result = run(generator);
 
 if (result.error) {
   console.error(`[ERROR] Failed to start executable generator: ${result.error.message}`);
@@ -24,4 +30,14 @@ if (result.status !== 0) {
   process.exit(result.status ?? 1);
 }
 
-console.log("[OK] Executable build completed successfully.");
+const validation = run(validator);
+if (validation.error) {
+  console.error(`[ERROR] Failed to start executable validator: ${validation.error.message}`);
+  process.exit(1);
+}
+if (validation.status !== 0) {
+  console.error(`[ERROR] Executable validation exited with status ${validation.status}`);
+  process.exit(validation.status ?? 1);
+}
+
+console.log("[OK] Executable build and validation completed successfully.");

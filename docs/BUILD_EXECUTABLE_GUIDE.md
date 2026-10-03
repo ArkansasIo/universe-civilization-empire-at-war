@@ -8,6 +8,29 @@ Guide for building standalone executables from the Universe Empire Dominion 3 co
 
 The build process compiles the TypeScript codebase into deployable artifacts for both client and server.
 
+For the standalone BSAT launcher binaries, the verified commands are:
+
+```bash
+# Generate all launcher copies and validate every PE artifact.
+npm run build:exe
+
+# Validate existing root/, public/, and dist-exe/ binaries without rebuilding.
+npm run validate:exe
+
+# Equivalent direct diagnostic command.
+node scripts/validate-exe.cjs
+```
+
+The validator checks the DOS/PE signatures, AMD64 machine type, PE32+ optional
+header, entry point, section bounds, import directory, Kernel32 imports, and
+the embedded batch command for each launcher. It emits `[ERROR]` for failures,
+`[WARN]` for suspicious but non-fatal metadata, and exits non-zero on errors.
+
+The launchers are dependency-free native stubs, not bundled Node.js servers.
+They invoke the matching batch file from the current Windows working directory,
+so Node.js, npm dependencies, the repository files, and any required database
+must still be installed separately.
+
 ---
 
 ## Build Commands
