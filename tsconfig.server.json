@@ -3,7 +3,9 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     "outDir": "./dist-server",
     "rootDir": "./",
     "strict": true,
@@ -14,12 +16,16 @@
     "declaration": true,
     "declarationMap": true,
     "removeComments": false,
-    "allowSyntheticDefaultImports": true,
-    "paths": {
-      "@shared/*": ["./shared/*"],
-      "@/*": ["./*"]
-    }
+    "allowSyntheticDefaultImports": true
   },
-  "include": ["server/**/*", "shared/**/*"],
-  "exclude": ["node_modules", "dist", "dist-server", "src"]
+  "include": [
+    "server/**/*",
+    "shared/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist-server",
+    "src"
+  ]
 }
