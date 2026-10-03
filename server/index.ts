@@ -19,6 +19,8 @@ import { registerEmpireCombatUniverseRoutes } from "./routes-empire-combat-unive
 import { registerCommanderRoutes } from "./routes-commanders";
 import { registerHighCommandRoutes } from "./routes-high-command";
 import { registerForumRoutes } from "./routes-forums";
+import { registerMessageRoutes } from "./routes-messages";
+import { registerFriendRoutes } from "./routes-friends";
 import { registerSmithyRoutes } from "./routes-smithy";
 import { registerOrbitalStationRoutes } from "./routes-orbital-stations";
 import { registerBankVaultRoutes } from "./routes-bank-vault";
@@ -516,11 +518,11 @@ import { eq, ilike, or } from "drizzle-orm";
 
   // Start cron jobs
   try {
-    const { shutdownAllCronJobs } = await import("./services/cronService");
-    const { registerAllGameJobs } = await import("./services/gameJobs");
+    const { shutdownAllCronJobs } = await import("./services/cronService.js");
+    const { registerAllGameJobs } = await import("./services/gameJobs.js");
     await registerAllGameJobs();
     log("Cron job system initialized", "startup", "success");
-    process.on("SIGTERM", async () => { shutdownAllCronJobs(); const { shutdownDb } = await import("./db"); await shutdownDb(); process.exit(0); });
+    process.on("SIGTERM", async () => { shutdownAllCronJobs(); const { shutdownDb } = await import("./db/index.js"); await shutdownDb(); process.exit(0); });
     process.on("SIGINT", async () => { shutdownAllCronJobs(); const { shutdownDb } = await import("./db"); await shutdownDb(); process.exit(0); });
   } catch (error) {
     log(`Cron job init skipped: ${(error as Error).message}`, "startup", "warn");
@@ -544,7 +546,7 @@ import { eq, ilike, or } from "drizzle-orm";
   if (runtimeNodeEnv === "production") {
     serveStatic(app);
   } else {
-    const { setupVite } = await import("./vite");
+    const { setupVite } = await import("./vite.js");
     await setupVite(httpServer, app);
   }
 
