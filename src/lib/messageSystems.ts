@@ -1,0 +1,1 @@
+import {gameApiClient} from "./gameApi"; export const messageSystems={list:()=>gameApiClient.get("/api/messages"),send:(recipientId:string,subject:string,body:string)=>gameApiClient.post("/api/messages",{recipientId,subject,body}),markRead:(id:string)=>gameApiClient.post("/api/messages/"+id+"/read",{})};
