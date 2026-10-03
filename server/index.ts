@@ -43,6 +43,7 @@ import { registerMissingApiRoutes } from "./routes-missing-api";
 import { UpdateManager } from "./update-manager";
 import { registerNewsRoutes } from "./routes-news";
 import { registerAdminConsoleRoutes } from "./routes-admin-console";
+import { registerAdminTerminalRoutes } from "./routes-admin-terminal";
 import { registerFittingRoutes } from "./routes-fitting";
 import { registerOGameDebrisRoutes } from "./routes-ogame-debris";
 import { registerOGameACSRoutes } from "./routes-ogame-acs";
@@ -398,6 +399,7 @@ import { eq, ilike, or } from "drizzle-orm";
   registerGateTokenRoutes(app);
   registerNewsRoutes(app);
   registerAdminConsoleRoutes(app);
+  registerAdminTerminalRoutes(app);
   registerFittingRoutes(app);
   try {
     const updateManager = UpdateManager.getInstance();
