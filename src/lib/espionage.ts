@@ -1,0 +1,1 @@
+import {gameApiClient} from "./gameApi"; export const espionageApi={config:()=>gameApiClient.get("/api/espionage/config"),agents:()=>gameApiClient.get("/api/espionage/agents"),reports:()=>gameApiClient.get("/api/espionage/reports"),execute:(operation:"scan"|"spy"|"sabotage",targetId:string)=>gameApiClient.post("/api/espionage/"+operation,{targetId})};
