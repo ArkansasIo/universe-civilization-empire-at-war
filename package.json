@@ -17,7 +17,8 @@
     "start:sh": "bash start-server.sh",
     "build:exe": "node scripts/generate-pe-exe.cjs && node scripts/validate-exe.cjs",
     "validate:exe": "node scripts/validate-exe.cjs",
-    "test:dependency": "tsx scripts/dependency-smoke.ts"
+    "test:dependency": "tsx scripts/dependency-smoke.ts",
+    "build:admin-terminal": "dotnet publish tools/AdminSystemsTerminal/AdminSystemsTerminal.csproj -c Release"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
