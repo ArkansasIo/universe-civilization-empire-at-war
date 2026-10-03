@@ -9,7 +9,13 @@ title BSAT TypeScript Compiler & Runner
 color 0F
 
 echo [*] Compiling server/index.ts -> dist-server/index.js...
-call npx tsc -p tsconfig.server.json
+if not exist "node_modules\.bin\tsc.cmd" (
+    color 0C
+    echo [ERROR] TypeScript compiler is not installed. Run npm install successfully first.
+    pause
+    exit /b 1
+)
+call "node_modules\.bin\tsc.cmd" -p tsconfig.server.json
 
 if %ERRORLEVEL% neq 0 (
     color 0C
