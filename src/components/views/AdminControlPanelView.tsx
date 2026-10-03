@@ -89,6 +89,7 @@ import { AdminSecurityAuditTab } from './admin/AdminSecurityAuditTab';
 import { AdminGlobalEventsTab } from './admin/AdminGlobalEventsTab';
 import { AdminMaintenanceTab } from './admin/AdminMaintenanceTab';
 import { AdminLoginPermissionsTab } from './admin/AdminLoginPermissionsTab';
+import { AdminSystemsTerminalView } from './AdminSystemsTerminalView';
 import { AdminEmpireHistoryTab } from './admin/AdminEmpireHistoryTab';
 import { AdminAuditLogTab } from './admin/AdminAuditLogTab';
 import { AdminDatabaseMySQLTab } from './admin/AdminDatabaseMySQLTab';
@@ -120,7 +121,8 @@ export type AdminTabType =
   | 'logs'
   | 'cli'
   | 'database-mysql'
-  | 'maintenance';
+  | 'maintenance'
+  | 'terminal';
 
 interface AdminControlPanelViewProps {
   initialTab?: AdminTabType;
@@ -506,6 +508,18 @@ export const AdminControlPanelView: React.FC<AdminControlPanelViewProps> = ({
                   </span>
                 </button>
               </div>
+            </div>
+
+            <div className="space-y-1">
+              <div className="text-[10px] font-extrabold uppercase text-[#777777] tracking-wider px-2 py-0.5 border-b border-[#eee] flex items-center justify-between">
+                <span>Server Operations</span>
+                <Terminal className="w-3 h-3 text-cyan-600" />
+              </div>
+              <button type="button" id="admin-tab-btn-terminal" onClick={() => { sound.play('click'); setActiveTab('terminal'); }}
+                className={`w-full flex items-center gap-2 px-2.5 py-2 text-xs font-bold text-left cursor-pointer border-l-4 ${activeTab === 'terminal' ? 'bg-[#111111] text-white border-cyan-400' : 'bg-white text-[#444444] hover:bg-[#f5f5f5] border-transparent'}`}>
+                <Terminal size={14} className={activeTab === 'terminal' ? 'text-cyan-400' : 'text-cyan-600'} />
+                <span>Admin Systems Terminal</span>
+              </button>
             </div>
 
             {/* Category 1: Security & Accounts */}
@@ -2211,6 +2225,12 @@ export const AdminControlPanelView: React.FC<AdminControlPanelViewProps> = ({
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {activeTab === 'terminal' && (
+        <div id="admin-tab-terminal" className="space-y-6">
+          <AdminSystemsTerminalView />
         </div>
       )}
 
