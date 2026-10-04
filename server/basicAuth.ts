@@ -149,8 +149,7 @@ function verifyPassword(password: string, encoded: string): { valid: boolean; ne
       return { valid: actual.length === expected.length && crypto.timingSafeEqual(actual, expected), needsUpgrade: false };
     } catch { return { valid: false, needsUpgrade: false }; }
   }
-  const legacy = crypto.createHash("sha256").update(password).digest("hex");
-  return { valid: legacy.length === encoded.length && crypto.timingSafeEqual(Buffer.from(legacy), Buffer.from(encoded)), needsUpgrade: true };
+  return { valid: false, needsUpgrade: false };
 }
 
 async function resolveUserByIdentifier(identifier: string | null | undefined): Promise<User | null> {
