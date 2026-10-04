@@ -91,12 +91,6 @@ registerAdminTerminalRoutes(app);
 
 app.use(express.static(distDir));
 
-/*
- * Production frontend fallback:
- * Browser navigation to "/", "/login", "/galaxy", etc. is a GET request.
- * If Vite has produced dist/index.html, return it for non-API routes so
- * client-side routing works instead of Express returning "Cannot GET /".
- */
 app.get("*", (req, res, next) => {
   if (req.path.startsWith("/api/")) return next();
   if (fs.existsSync(indexFile)) return res.sendFile(indexFile);
@@ -121,6 +115,17 @@ const server = app.listen(port, "0.0.0.0", () => {
   console.log("Health: http://localhost:" + port + "/api/status/health");
   console.log("Admin:  http://localhost:" + port + "/api/admin/terminal/menu");
   console.log("Web:    http://localhost:" + port + "/");
+});
+
+server.on("error", (error: NodeJS.ErrnoException) => {
+  if (error.code === "EADDRINUSE") {
+    console.error(`Port ${port} is already in use.`);
+    console.error(`Stop the existing server or start this server on another port, for example: PORT=${port + 1}`);
+    process.exitCode = 1;
+    return;
+  }
+  console.error("Server failed to start:", error);
+  process.exitCode = 1;
 });
 
 const shutdown = async (signal: string) => {
