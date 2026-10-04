@@ -5,7 +5,7 @@ import MemoryStoreFactory from "memorystore";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { db, shutdownDb } from "./db";
+import { checkDatabase, db, shutdownDb } from "./db";
 import { users } from "../shared/schema";
 import { eq, ilike, or, sql } from "drizzle-orm";
 import { registerAdminTerminalRoutes } from "./routes-admin-terminal";

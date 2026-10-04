@@ -1,31 +1,80 @@
-import { Pool } from 'pg';
-import { drizzle } from 'drizzle-orm/node-postgres';
+import "dotenv/config";
+import { Pool } from "pg";
+import { drizzle } from "drizzle-orm/node-postgres";
 import * as schema from "../../shared/schema";
 
-const envUrl = process.env.DATABASE_URL || "";
-const localUrl = process.env.LOCAL_DATABASE_URL || "";
-const databaseUrl = envUrl || localUrl || "postgresql://runner@localhost:15432/stellar_dominion";
+const databaseUrl =
+  process.env.DATABASE_URL ||
+  process.env.LOCAL_DATABASE_URL ||
+  "postgresql://postgres@localhost:5432/universe_civilization";
 
-console.log('🔌 Connecting to database...');
+function describeDatabaseTarget(connectionString: string): string {
+  try {
+    const url = new URL(connectionString);
+    const host = url.hostname || "localhost";
+    const port = url.port || "5432";
+    const database = url.pathname.replace(/^\//, "") || "(default)";
+    const user = decodeURIComponent(url.username || "postgres");
+    return `${user}@${host}:${port}/${database}`;
+  } catch {
+    return "(invalid DATABASE_URL)";
+  }
+}
+
+function describeDatabaseError(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  const details = error as Error & { code?: string; errno?: string; address?: string; port?: number };
+  const parts = [error.message];
+  if (details.code) parts.push(`code=${details.code}`);
+  if (details.address) parts.push(`address=${details.address}`);
+  if (details.port) parts.push(`port=${details.port}`);
+  return parts.join(" | ");
+}
+
+console.log("🔌 Connecting to database...");
+console.log(`   Target: ${describeDatabaseTarget(databaseUrl)}`);
 
 export const pool = new Pool({
   connectionString: databaseUrl,
   connectionTimeoutMillis: 5000,
+  max: Number.parseInt(process.env.DB_POOL_MAX || "10", 10),
 });
 
-// Test connection and log status
+let databaseReady = false;
+
 pool.connect()
   .then(client => {
-    console.log('✅ Database connection established');
+    databaseReady = true;
+    console.log("✅ Database connection established");
     client.release();
   })
   .catch(error => {
-    console.error('❌ Database connection failed:', error.message);
-    console.error('⚠️  Server will start but database operations will fail');
-    console.error('💡 Make sure PostgreSQL is running or update DATABASE_URL');
+    databaseReady = false;
+    console.error("❌ Database connection failed:", describeDatabaseError(error));
+    console.error("   Check that PostgreSQL is running and that DATABASE_URL points to the correct host, port, database, and credentials.");
+    console.error("   Example local URL: postgresql://postgres:YOUR_PASSWORD@localhost:5432/universe_civilization");
   });
 
+pool.on("error", error => {
+  databaseReady = false;
+  console.error("❌ Unexpected PostgreSQL pool error:", describeDatabaseError(error));
+});
+
 export const db = drizzle({ client: pool, schema });
+
+export function isDatabaseReady(): boolean {
+  return databaseReady;
+}
+
+export async function checkDatabase(): Promise<void> {
+  const client = await pool.connect();
+  try {
+    await client.query("SELECT 1");
+    databaseReady = true;
+  } finally {
+    client.release();
+  }
+}
 
 export async function runTransaction<T>(fn: (tx: any) => Promise<T>): Promise<T> {
   return await db.transaction(fn);
@@ -34,8 +83,9 @@ export async function runTransaction<T>(fn: (tx: any) => Promise<T>): Promise<T>
 export async function shutdownDb() {
   try {
     await pool.end();
-    console.log('🔌 Database connection closed');
+    databaseReady = false;
+    console.log("🔌 Database connection closed");
   } catch (error) {
-    console.error('❌ Error closing database connection:', error);
+    console.error("❌ Error closing database connection:", error);
   }
 }
