@@ -59,5 +59,8 @@
     "tsx": "^4.21.0",
     "typescript": "^7.0.2",
     "@types/pg": "^8.15.6"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.5"
   }
 }
