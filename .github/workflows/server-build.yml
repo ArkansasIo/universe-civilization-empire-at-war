@@ -10,7 +10,7 @@ on:
       - "server/**"
       - "shared/**"
       - "package.json"
-      - "package-lock.json"
+      - "bun.lock"
       - "tsconfig.server.json"
       - ".github/workflows/server-build.yml"
   pull_request:
@@ -31,5 +31,5 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
+      - run: npm install --no-audit --no-fund --ignore-scripts
       - run: npm run server:build
