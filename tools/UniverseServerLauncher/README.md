@@ -14,7 +14,7 @@ The launcher:
 
 ## Local database
 
-The launcher does not create PostgreSQL databases or invent credentials.
+Before building, the launcher locates the repository root and performs a PostgreSQL TCP preflight using DATABASE_URL or LOCAL_DATABASE_URL. If PostgreSQL is unreachable, it stops with the host/port and concrete PowerShell diagnostic to run. The launcher does not create PostgreSQL databases or invent credentials.
 
 Configure `.env` first:
 
