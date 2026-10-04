@@ -3,6 +3,7 @@ import express, { type NextFunction, type Request, type Response } from "express
 import session from "express-session";
 import MemoryStoreFactory from "memorystore";
 import crypto from "node:crypto";
+import fs from "node:fs";
 import path from "node:path";
 import { db, shutdownDb } from "./db";
 import { users } from "../shared/schema";
@@ -12,6 +13,8 @@ import { registerAdminTerminalRoutes } from "./routes-admin-terminal";
 const app = express();
 const port = Number.parseInt(process.env.PORT || "5001", 10);
 const SessionStore = MemoryStoreFactory(session);
+const distDir = path.resolve(process.cwd(), "dist");
+const indexFile = path.join(distDir, "index.html");
 
 app.set("trust proxy", 1);
 app.use(express.json({ limit: "1mb" }));
@@ -86,7 +89,25 @@ app.get("/api/auth/me", async (req, res) => {
 
 registerAdminTerminalRoutes(app);
 
-app.use(express.static(path.resolve(process.cwd(), "dist")));
+app.use(express.static(distDir));
+
+/*
+ * Production frontend fallback:
+ * Browser navigation to "/", "/login", "/galaxy", etc. is a GET request.
+ * If Vite has produced dist/index.html, return it for non-API routes so
+ * client-side routing works instead of Express returning "Cannot GET /".
+ */
+app.get("*", (req, res, next) => {
+  if (req.path.startsWith("/api/")) return next();
+  if (fs.existsSync(indexFile)) return res.sendFile(indexFile);
+  res.status(503).json({
+    ok: false,
+    message: "Frontend build not found.",
+    hint: "Run npm run build before starting the production server.",
+    expected: indexFile,
+  });
+});
+
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   if (res.headersSent) return;
   res.status(500).json({ ok: false, message: err instanceof Error ? err.message : "Internal Server Error" });
@@ -99,6 +120,7 @@ const server = app.listen(port, "0.0.0.0", () => {
   console.log("API:    http://localhost:" + port + "/api");
   console.log("Health: http://localhost:" + port + "/api/status/health");
   console.log("Admin:  http://localhost:" + port + "/api/admin/terminal/menu");
+  console.log("Web:    http://localhost:" + port + "/");
 });
 
 const shutdown = async (signal: string) => {
