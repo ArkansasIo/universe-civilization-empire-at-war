@@ -5,7 +5,7 @@ import MemoryStoreFactory from "memorystore";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { checkDatabase, db, shutdownDb } from "./db";
+import { db, isDatabaseReady, shutdownDb } from "./db";
 import { users } from "../shared/schema";
 import { eq, ilike, or, sql } from "drizzle-orm";
 import { registerAdminTerminalRoutes } from "./routes-admin-terminal";
@@ -16,19 +16,53 @@ const SessionStore = MemoryStoreFactory(session);
 const distDir = path.resolve(process.cwd(), "dist");
 const indexFile = path.join(distDir, "index.html");
 
-app.set("trust proxy", 1);
+if (!Number.isInteger(port) || port < 1 || port > 65535) {
+  throw new Error("PORT must be an integer between 1 and 65535");
+}
+
+const nodeEnv = process.env.NODE_ENV || "development";
+const isProduction = nodeEnv === "production";
+const sessionSecret = process.env.SESSION_SECRET?.trim();
+
+if (isProduction && (!sessionSecret || sessionSecret.length < 32)) {
+  throw new Error("SESSION_SECRET must be set to at least 32 characters in production.");
+}
+
+app.disable("x-powered-by");
+app.set("trust proxy", process.env.TRUST_PROXY === "true" ? 1 : false);
 app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: false }));
+
+const allowedOrigins = new Set(
+  (process.env.CORS_ORIGINS || process.env.APP_URL || "")
+    .split(",")
+    .map(value => value.trim().replace(/\/$/, ""))
+    .filter(Boolean),
+);
+
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.has(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Vary", "Origin");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+  }
+  if (req.method === "OPTIONS") return res.sendStatus(origin && allowedOrigins.has(origin) ? 204 : 403);
+  next();
+});
+
 app.use(session({
   name: "connect.sid",
-  secret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString("hex"),
+  secret: sessionSecret || crypto.randomBytes(32).toString("hex"),
   store: new SessionStore({ checkPeriod: 86_400_000 }),
   resave: false,
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: isProduction,
     maxAge: 7 * 24 * 60 * 60 * 1000,
   },
 }));
@@ -40,9 +74,20 @@ function hashPassword(password: string): string {
 app.get("/api/status/health", async (_req, res) => {
   try {
     await db.execute(sql`SELECT 1`);
-    res.json({ ok: true, status: "healthy", timestamp: new Date().toISOString() });
-  } catch {
-    res.status(503).json({ ok: false, status: "degraded", timestamp: new Date().toISOString() });
+    res.json({
+      ok: true,
+      status: "healthy",
+      database: isDatabaseReady() ? "ready" : "connected",
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    res.status(503).json({
+      ok: false,
+      status: "degraded",
+      database: "unavailable",
+      message: error instanceof Error ? error.message : "Database unavailable",
+      timestamp: new Date().toISOString(),
+    });
   }
 });
 
@@ -67,7 +112,7 @@ app.post("/api/auth/login", async (req, res) => {
       return res.status(403).json({ message: user.banReason || "Account is banned" });
     }
 
-    (req.session as any).userId = user.id;
+    req.session.userId = user.id;
     await new Promise<void>((resolve, reject) => req.session.save(err => err ? reject(err) : resolve()));
     res.json({ message: "Login successful", user: { id: user.id, username: user.username, email: user.email } });
   } catch (error) {
@@ -80,10 +125,18 @@ app.post("/api/auth/logout", (req, res) => {
 });
 
 app.get("/api/auth/me", async (req, res) => {
-  if (!(req.session as any).userId) return res.status(401).json({ authenticated: false });
-  const [user] = await db.select({ id: users.id, username: users.username, email: users.email, isBanned: users.isBanned })
-    .from(users).where(eq(users.id, (req.session as any).userId)).limit(1);
-  if (!user || user.isBanned) return res.status(401).json({ authenticated: false });
+  const userId = req.session.userId;
+  if (!userId) return res.status(401).json({ authenticated: false });
+  const [user] = await db.select({
+    id: users.id,
+    username: users.username,
+    email: users.email,
+    isBanned: users.isBanned,
+  }).from(users).where(eq(users.id, userId)).limit(1);
+  if (!user || user.isBanned) {
+    req.session.destroy(() => undefined);
+    return res.status(401).json({ authenticated: false });
+  }
   res.json({ authenticated: true, user });
 });
 
@@ -111,10 +164,11 @@ const server = app.listen(port, "0.0.0.0", () => {
   console.log("================================================");
   console.log(" UNIVERSE CIVILIZATION SERVER");
   console.log("================================================");
-  console.log("API:    http://localhost:" + port + "/api");
-  console.log("Health: http://localhost:" + port + "/api/status/health");
-  console.log("Admin:  http://localhost:" + port + "/api/admin/terminal/menu");
-  console.log("Web:    http://localhost:" + port + "/");
+  console.log(`Environment: ${nodeEnv}`);
+  console.log(`API:    http://localhost:${port}/api`);
+  console.log(`Health: http://localhost:${port}/api/status/health`);
+  console.log(`Admin:  http://localhost:${port}/api/admin/terminal/menu`);
+  console.log(`Web:    http://localhost:${port}/`);
 });
 
 server.on("error", (error: NodeJS.ErrnoException) => {
