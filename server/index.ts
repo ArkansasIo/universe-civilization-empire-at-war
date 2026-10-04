@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express, { type NextFunction, type Request, type Response } from "express";
+import rateLimit from "express-rate-limit";
 import session from "express-session";
 import MemoryStoreFactory from "memorystore";
 import crypto from "node:crypto";
@@ -11,6 +12,7 @@ import { eq, ilike, or, sql } from "drizzle-orm";
 import { registerAdminTerminalRoutes } from "./routes-admin-terminal";
 
 const app = express();
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false });
 const port = Number.parseInt(process.env.PORT || "5001", 10);
 const SessionStore = MemoryStoreFactory(session);
 const distDir = path.resolve(process.cwd(), "dist");
@@ -68,7 +70,25 @@ app.use(session({
 }));
 
 function hashPassword(password: string): string {
-  return crypto.createHash("sha256").update(password).digest("hex");
+  const salt = crypto.randomBytes(16);
+  const derived = crypto.scryptSync(password, salt, 64, { N: 16384, r: 8, p: 1, maxmem: 32 * 1024 * 1024 });
+  return "scrypt$16384$8$1$" + salt.toString("base64url") + "$" + derived.toString("base64url");
+}
+
+function verifyPassword(password: string, encoded: string): { valid: boolean; needsUpgrade: boolean } {
+  if (encoded.startsWith("scrypt$")) {
+    const [, nText, rText, pText, saltText, hashText] = encoded.split("$");
+    const n = Number(nText), r = Number(rText), p = Number(pText);
+    if (!Number.isSafeInteger(n) || !Number.isSafeInteger(r) || !Number.isSafeInteger(p) || !saltText || !hashText) return { valid: false, needsUpgrade: false };
+    try {
+      const salt = Buffer.from(saltText, "base64url");
+      const expected = Buffer.from(hashText, "base64url");
+      const actual = crypto.scryptSync(password, salt, expected.length, { N: n, r, p, maxmem: 32 * 1024 * 1024 });
+      return { valid: actual.length === expected.length && crypto.timingSafeEqual(actual, expected), needsUpgrade: false };
+    } catch { return { valid: false, needsUpgrade: false }; }
+  }
+  const legacy = crypto.createHash("sha256").update(password).digest("hex");
+  return { valid: legacy.length === encoded.length && crypto.timingSafeEqual(Buffer.from(legacy), Buffer.from(encoded)), needsUpgrade: true };
 }
 
 app.get("/api/status/health", async (_req, res) => {
@@ -91,7 +111,7 @@ app.get("/api/status/health", async (_req, res) => {
   }
 });
 
-app.post("/api/auth/login", async (req, res) => {
+app.post("/api/auth/login", authLimiter, async (req, res) => {
   try {
     const identifier = String(req.body?.username || req.body?.email || "").trim();
     const password = String(req.body?.password || "");
@@ -105,10 +125,10 @@ app.post("/api/auth/login", async (req, res) => {
         : or(ilike(users.username, identifier), ilike(users.email, identifier)),
     ).limit(1);
 
-    if (!user || user.passwordHash !== hashPassword(password)) {
+    if (!user || !user.passwordHash) {\n      return res.status(401).json({ message: "Invalid credentials" });\n    }\n    const passwordCheck = verifyPassword(password, user.passwordHash);\n    if (!passwordCheck.valid) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
-    if (user.isBanned) {
+    if (passwordCheck.needsUpgrade) await db.update(users).set({ passwordHash: hashPassword(password) }).where(eq(users.id, user.id));\n    if (user.isBanned) {
       return res.status(403).json({ message: user.banReason || "Account is banned" });
     }
 

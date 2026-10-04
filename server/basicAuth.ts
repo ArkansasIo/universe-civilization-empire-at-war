@@ -1,6 +1,7 @@
 import session from "express-session";
 import type { Express, RequestHandler } from "express";
 import MemoryStore from "memorystore";
+import rateLimit from "express-rate-limit";
 import { storage } from "./storage";
 import { logger } from "./logger";
 import crypto from "crypto";
@@ -49,7 +50,7 @@ function isDevAuthBypassEnabled() {
   }
 
   if (!raw) {
-    return true;
+    return false;
   }
 
   if (["0", "false", "no", "off"].includes(raw)) {
@@ -68,7 +69,8 @@ async function ensureDevBypassUser() {
   const username = (process.env.DEV_AUTH_USERNAME || "devadmin").trim();
   const email = (process.env.DEV_AUTH_EMAIL || "devadmin@universee.local").trim();
   const firstName = (process.env.DEV_AUTH_FIRST_NAME || "Dev Admin").trim();
-  const defaultPassword = process.env.DEV_AUTH_PASSWORD || "dev-password";
+  const defaultPassword = String(process.env.DEV_AUTH_PASSWORD || "").trim();
+  if (!username || !email || !defaultPassword) return null;
 
   let user = await resolveUserByIdentifier(username) || await resolveUserByIdentifier(email);
   if (!user) {
@@ -115,13 +117,13 @@ export function getSession() {
   
   return session({
     name: 'connect.sid',
-    secret: process.env.SESSION_SECRET || "dev-secret-key",
+    secret: (() => { const secret = process.env.SESSION_SECRET?.trim(); if (!secret || secret.length < 32) { if (process.env.NODE_ENV === "production") throw new Error("SESSION_SECRET must be at least 32 characters in production"); return crypto.randomBytes(32).toString("hex"); } return secret; })(),
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: false, // Allow in development
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: sessionTtl,
       path: '/'
@@ -130,11 +132,25 @@ export function getSession() {
 }
 
 function hashPassword(password: string): string {
-  return crypto.createHash("sha256").update(password).digest("hex");
+  const salt = crypto.randomBytes(16);
+  const derived = crypto.scryptSync(password, salt, 64, { N: 16384, r: 8, p: 1, maxmem: 32 * 1024 * 1024 });
+  return "scrypt$16384$8$1$" + salt.toString("base64url") + "$" + derived.toString("base64url");
 }
 
-function verifyPassword(password: string, hash: string): boolean {
-  return hashPassword(password) === hash;
+function verifyPassword(password: string, encoded: string): { valid: boolean; needsUpgrade: boolean } {
+  if (encoded.startsWith("scrypt$")) {
+    const [, nText, rText, pText, saltText, hashText] = encoded.split("$");
+    const n = Number(nText), r = Number(rText), p = Number(pText);
+    if (!Number.isSafeInteger(n) || !Number.isSafeInteger(r) || !Number.isSafeInteger(p) || !saltText || !hashText) return { valid: false, needsUpgrade: false };
+    try {
+      const salt = Buffer.from(saltText, "base64url");
+      const expected = Buffer.from(hashText, "base64url");
+      const actual = crypto.scryptSync(password, salt, expected.length, { N: n, r, p, maxmem: 32 * 1024 * 1024 });
+      return { valid: actual.length === expected.length && crypto.timingSafeEqual(actual, expected), needsUpgrade: false };
+    } catch { return { valid: false, needsUpgrade: false }; }
+  }
+  const legacy = crypto.createHash("sha256").update(password).digest("hex");
+  return { valid: legacy.length === encoded.length && crypto.timingSafeEqual(Buffer.from(legacy), Buffer.from(encoded)), needsUpgrade: true };
 }
 
 async function resolveUserByIdentifier(identifier: string | null | undefined): Promise<User | null> {
@@ -209,12 +225,12 @@ async function ensureBootstrapAdminAccount() {
       return;
     }
 
-    const bootstrapUsername = (process.env.ADMIN_BOOTSTRAP_USERNAME || "admin").trim();
-    const bootstrapEmail = (process.env.ADMIN_BOOTSTRAP_EMAIL || "admin@universee.game").trim();
-    const bootstrapPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD || "Admin@12345";
+    const bootstrapUsername = String(process.env.ADMIN_BOOTSTRAP_USERNAME || "").trim();
+    const bootstrapEmail = String(process.env.ADMIN_BOOTSTRAP_EMAIL || "").trim();
+    const bootstrapPassword = String(process.env.ADMIN_BOOTSTRAP_PASSWORD || "").trim();
     const bootstrapRole = normalizeAdminRole(process.env.ADMIN_BOOTSTRAP_ROLE || "founder");
 
-    if (!bootstrapUsername || !bootstrapEmail || !bootstrapPassword) {
+    if (!bootstrapUsername || !bootstrapEmail || bootstrapPassword.length < 12) {
       logger.warn("AUTH", "Bootstrap admin account skipped due to missing credentials");
       return;
     }
@@ -311,7 +327,7 @@ async function ensureDevelopmentDemoAccounts() {
     return;
   }
 
-  const enabled = (process.env.ENABLE_DEMO_ACCOUNTS || "true").trim().toLowerCase();
+  const enabled = (process.env.ENABLE_DEMO_ACCOUNTS || "false").trim().toLowerCase();
   if (["0", "false", "no", "off"].includes(enabled)) {
     return;
   }
@@ -347,7 +363,7 @@ async function ensureBootstrapAdminAccounts() {
         username: (process.env.DEV_ADMIN_USERNAME || "devadmin").trim(),
         email: (process.env.DEV_ADMIN_EMAIL || "devadmin@universee.game").trim(),
         firstName: (process.env.DEV_ADMIN_FIRST_NAME || "Dev Admin").trim(),
-        password: process.env.DEV_ADMIN_PASSWORD || process.env.DEV_AUTH_PASSWORD || "dev-password",
+        password: String(process.env.DEV_ADMIN_PASSWORD || process.env.DEV_AUTH_PASSWORD || "").trim(),
         role: process.env.DEV_ADMIN_ROLE || "devadmin",
         label: "Development admin",
       });
@@ -365,7 +381,7 @@ async function ensureBootstrapAdminAccounts() {
         username: ownerUsername || ownerEmail.split("@")[0] || "owneradmin",
         email: ownerEmail || `${ownerUsername || "owneradmin"}@universee.game`,
         firstName: (process.env.OWNER_ADMIN_FIRST_NAME || "Owner Admin").trim(),
-        password: ownerPassword || process.env.ADMIN_BOOTSTRAP_PASSWORD || "Owner@12345",
+        password: ownerPassword,
         role: process.env.OWNER_ADMIN_ROLE || "founder",
         label: "Owner admin",
       });
@@ -376,21 +392,25 @@ async function ensureBootstrapAdminAccounts() {
 }
 
 export async function setupAuth(app: Express) {
-  app.set("trust proxy", 1);
+  app.set("trust proxy", process.env.TRUST_PROXY === "true" ? 1 : false);
   
-  // Add CORS headers to allow credentials
+  const allowedOrigins = new Set((process.env.CORS_ORIGINS || process.env.APP_URL || "")
+    .split(",").map(value => value.trim().replace(/\/$/, "")).filter(Boolean));
   app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', req.get('origin') || 'http://localhost:5000');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    
-    if (req.method === 'OPTIONS') {
-      return res.sendStatus(200);
+    const origin = req.get("origin");
+    if (origin && allowedOrigins.has(origin)) {
+      res.header("Access-Control-Allow-Origin", origin);
+      res.header("Vary", "Origin");
+      res.header("Access-Control-Allow-Credentials", "true");
+      res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
+      res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CSRF-Token");
     }
+    if (req.method === "OPTIONS") return res.sendStatus(!origin || allowedOrigins.has(origin) ? 204 : 403);
     next();
   });
-  
+  const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 20, standardHeaders: "draft-8", legacyHeaders: false });
+  const resetLimiter = rateLimit({ windowMs: 60 * 60 * 1000, limit: 5, standardHeaders: "draft-8", legacyHeaders: false });
+
   app.use(getSession());
 
   try {
@@ -404,7 +424,7 @@ export async function setupAuth(app: Express) {
     logger.warn("AUTH", `Auth bootstrap skipped: ${(error as Error).message}`);
   }
 
-  app.post("/api/auth/register", async (req, res) => {
+  app.post("/api/auth/register", authLimiter, async (req, res) => {
     try {
       const { username, password, email, firstName } = req.body;
 
@@ -451,7 +471,7 @@ export async function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/login", authLimiter, async (req, res) => {
     try {
       const { username, password } = req.body;
       logger.info("AUTH", `Login attempt for user: ${username}`);
@@ -473,7 +493,9 @@ export async function setupAuth(app: Express) {
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
-      const passwordValid = verifyPassword(password, user.passwordHash);
+      const passwordCheck = verifyPassword(password, user.passwordHash);
+      const passwordValid = passwordCheck.valid;
+      if (passwordValid && passwordCheck.needsUpgrade) await storage.updateUser(user.id, { passwordHash: hashPassword(password) });
       
       if (!passwordValid) {
         logger.warn("AUTH", `Invalid password for user: ${username}`);
@@ -501,7 +523,7 @@ export async function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/admin/login", logAdminActivity, requireAdminIp, async (req, res) => {
+  app.post("/api/admin/login", authLimiter, logAdminActivity, requireAdminIp, async (req, res) => {
     try {
       const identifier = String(req.body?.identifier || req.body?.username || "").trim();
       const password = String(req.body?.password || "");
@@ -513,7 +535,7 @@ export async function setupAuth(app: Express) {
 
       // ── Security code verification ──────────────────────────────
       const isDev = process.env.NODE_ENV === "development";
-      const expectedCode = process.env.ADMIN_SECURITY_CODE || (isDev ? "STELLAR-ADMIN" : null);
+      const expectedCode = String(process.env.ADMIN_SECURITY_CODE || "").trim();
 
       if (expectedCode) {
         if (!securityCode) {
@@ -527,7 +549,7 @@ export async function setupAuth(app: Express) {
 
       const user = await resolveUserByIdentifier(identifier);
 
-      if (!user || !user.passwordHash || !verifyPassword(password, user.passwordHash)) {
+      if (!user || !user.passwordHash || !verifyPassword(password, user.passwordHash).valid) {
         logger.warn("AUTH", `Admin login failed for identifier: ${identifier}`);
         return res.status(401).json({ message: "Invalid credentials" });
       }
@@ -567,38 +589,8 @@ export async function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/auth/reset-password", async (req, res) => {
-    try {
-      const { username, email } = req.body;
-
-      if (!username || !email) {
-        return res.status(400).json({ message: "Username and email required" });
-      }
-
-      const user = await storage.getUserByUsername(username);
-      if (!user) {
-        return res.status(401).json({ message: "User not found" });
-      }
-
-      if (user.email !== email) {
-        return res.status(401).json({ message: "Email does not match account" });
-      }
-
-      const temporaryPassword = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-      const passwordHash = hashPassword(temporaryPassword);
-      
-      await storage.updateUser(user.id, { passwordHash });
-      
-      logger.info("AUTH", `Password reset requested for user: ${username}`);
-      res.json({ 
-        message: "Password has been reset", 
-        temporaryPassword: temporaryPassword,
-        instructions: "Use the temporary password to login, then change it in your account settings"
-      });
-    } catch (error) {
-      logger.error("AUTH", "Password reset error", {}, error);
-      res.status(500).json({ message: "Password reset failed" });
-    }
+  app.post('/api/auth/reset-password', resetLimiter, async (_req, res) => {
+    return res.status(501).json({ message: 'Self-service password reset is not configured. Contact the administrator.' });
   });
 
   app.get("/api/auth/user", async (req, res) => {
@@ -636,7 +628,7 @@ export async function setupAuth(app: Express) {
 
           if (username && password) {
             const user = await resolveUserByIdentifier(username);
-            if (user && user.passwordHash && verifyPassword(password, user.passwordHash)) {
+            if (user && user.passwordHash && verifyPassword(password, user.passwordHash).valid) {
               (req.session as any).userId = user.id;
               const adminStatus = await resolveAdminStatus(user.id);
               if (adminStatus.isAdmin) {
